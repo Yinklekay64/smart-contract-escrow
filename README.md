@@ -105,6 +105,29 @@ await token.approve(processorAddress, amount);
 await processor.pay(recipient, tokenAddress, amount);
 ```
 
+## Frontend
+
+A React frontend (Vite + ethers.js + MetaMask) lives in `frontend/` with pages
+for sending payments, creating/paying invoices, managing subscriptions, and a
+merchant dashboard.
+
+```bash
+# 1. Export the compiled ABIs into the frontend
+node scripts/export-abis.js   # or: npm run export:abis
+
+# 2. Configure the deployed contract addresses
+cd frontend
+cp .env.example .env          # set the VITE_* contract addresses
+
+# 3. Run it
+npm install
+npm run dev                   # http://localhost:5173
+```
+
+The app connects via MetaMask (`window.ethereum`) and targets the chain set in
+`VITE_CHAIN_ID` (Sepolia by default). Build a production bundle with
+`npm run build`.
+
 ## Security notes
 
 - Never commit `.env` or private keys — use `.env.example` as the template.
