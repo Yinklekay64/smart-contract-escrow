@@ -55,4 +55,5 @@ labeled by complexity:
 
 ## Code of conduct
 
-Be kind and constructive. Assume good faith.
+We follow the [Contributor Covenant](CODE_OF_CONDUCT.md). Be kind and
+constructive; assume good faith.

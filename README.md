@@ -15,6 +15,14 @@
 
 ---
 
+## What it does
+
+**smart-contract-escrow** is a trustless escrow layer on Stellar: a buyer locks
+funds in a Soroban smart contract, and the value is released only when both
+parties agree — or an arbiter settles a dispute. It is built on Stellar because
+near-zero fees, ~5-second finality, and native asset contracts (XLM, USDC, any
+SAC token) make trust-minimized, multi-asset escrow practical at global scale.
+
 ## Problem
 
 Sending value to a counterparty you don't fully trust is risky: the seller may
@@ -82,6 +90,25 @@ escrows, token allow-list, platform fee, professional audit).
 ├── frontend/                  # React + Stellar (Freighter) frontend
 ├── docs/                      # Architecture, security, roadmap
 └── assets/                    # Branding
+```
+
+## Quickstart
+
+```bash
+git clone https://github.com/Yinklekay64/smart-contract-escrow.git
+cd smart-contract-escrow
+
+# Install Rust + the stellar CLI (see Prerequisites), then:
+make build      # build the Escrow and EscrowFactory wasm files
+make test       # run the unit + integration test suite
+```
+
+Point the frontend at the live testnet factory and run it:
+
+```bash
+cd frontend
+npm install
+npm run dev    # .env.example is pre-filled with the testnet factory id
 ```
 
 ## Prerequisites
@@ -171,7 +198,8 @@ npm run dev
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones and
 [`CONTRIBUTING.md`](CONTRIBUTING.md) to get involved. Contributors are welcome —
-check the open issues and pick one up.
+check the open issues and pick one up. We follow the
+[Contributor Covenant](CODE_OF_CONDUCT.md).
 
 ## License
 
