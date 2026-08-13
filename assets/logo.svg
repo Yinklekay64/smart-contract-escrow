@@ -1,11 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="smart-contract-escrow logo">
-  <rect width="512" height="512" rx="96" fill="#0B1E3D"/>
-  <!-- Shield -->
-  <path d="M256 112 L342 146 L342 282 Q342 360 256 410 Q170 360 170 282 L170 146 Z"
-        fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linejoin="round"/>
-  <!-- Interlocking chain links (escrow handshake) -->
-  <rect x="218" y="188" width="76" height="144" rx="38"
-        fill="none" stroke="#00D1B2" stroke-width="22"/>
-  <rect x="190" y="222" width="132" height="76" rx="38"
-        fill="none" stroke="#00D1B2" stroke-width="22"/>
+<svg width="220" height="220" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Smart Contract Escrow logo</title>
+  <desc>A navy shield with a linked-chain link at its center, symbolizing secure, trustless escrow.</desc>
+
+  <rect x="0" y="0" width="220" height="220" rx="28" fill="#0B1E3D"/>
+
+  <path d="M110 34
+           L168 54
+           V108
+           C168 148 144 174 110 190
+           C76 174 52 148 52 108
+           V54
+           Z"
+        fill="none" stroke="#08B5E5" stroke-width="4"/>
+
+  <path d="M110 42
+           L160 60
+           V108
+           C160 143 139 166 110 181
+           C81 166 60 143 60 108
+           V60
+           Z"
+        fill="#102A52"/>
+
+  <g stroke="#00D1B2" stroke-width="7" stroke-linecap="round" fill="none">
+    <rect x="83" y="88" width="26" height="40" rx="13"/>
+    <rect x="111" y="88" width="26" height="40" rx="13"/>
+  </g>
+
+  <circle cx="110" cy="108" r="3" fill="#00D1B2"/>
 </svg>
