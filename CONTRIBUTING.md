@@ -44,8 +44,10 @@ make test
 
 ## How to claim an issue
 
-Comment on the issue to signal you're working on it, then reference it in your
-PR (`Closes #N`). Issues are labeled by complexity:
+A scoped backlog of ready-to-file issues lives in
+[`docs/ISSUE_BACKLOG.md`](docs/ISSUE_BACKLOG.md). Comment on the issue to signal
+you're working on it, then reference it in your PR (`Closes #N`). Issues are
+labeled by complexity:
 
 - **Trivial** — docs, typos, small test additions
 - **Medium** — a focused feature or refactor
