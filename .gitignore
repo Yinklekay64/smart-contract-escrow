@@ -1,6 +1,11 @@
 # Dependencies
 node_modules/
 
+# Rust / Soroban build artifacts
+target/
+*.wasm
+wasm/
+
 # Hardhat / build artifacts
 artifacts/
 cache/
@@ -20,6 +25,11 @@ deployments/
 .env
 .env.local
 .env.*.local
+
+# Soroban / stellar CLI local state
+.stellar/
+.soroban/
+test_snapshots/
 
 # Coverage
 *.lcov

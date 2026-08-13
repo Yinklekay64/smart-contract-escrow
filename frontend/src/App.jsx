@@ -1,40 +1,23 @@
-import { Routes, Route, NavLink } from "react-router-dom";
-import { WalletProvider } from "./context/WalletContext";
-import ConnectButton from "./components/ConnectButton";
-import ConfigBanner from "./components/ConfigBanner";
-import SendPayment from "./pages/SendPayment";
-import Invoices from "./pages/Invoices";
-import Subscriptions from "./pages/Subscriptions";
-import Dashboard from "./pages/Dashboard";
+import { WalletProvider } from "./context/WalletContext.jsx";
+import Escrows from "./pages/Escrows.jsx";
 
 export default function App() {
   return (
     <WalletProvider>
-      <div className="app">
-        <header className="topbar">
-          <div className="brand">smart-contract-payments</div>
-          <nav>
-            <NavLink to="/" end>
-              Send
-            </NavLink>
-            <NavLink to="/invoices">Invoices</NavLink>
-            <NavLink to="/subscriptions">Subscriptions</NavLink>
-            <NavLink to="/dashboard">Dashboard</NavLink>
-          </nav>
-          <ConnectButton />
-        </header>
-
-        <ConfigBanner />
-
-        <main>
-          <Routes>
-            <Route path="/" element={<SendPayment />} />
-            <Route path="/invoices" element={<Invoices />} />
-            <Route path="/subscriptions" element={<Subscriptions />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-          </Routes>
-        </main>
-      </div>
+      <header className="app-header">
+        <span className="logo-dot" aria-hidden="true" />
+        <strong>smart-contract-escrow</strong>
+        <span className="tagline">Stellar · Soroban escrow</span>
+      </header>
+      <main>
+        <Escrows />
+      </main>
+      <footer className="app-footer">
+        Unaudited — testnet only.{" "}
+        <a href="https://github.com/Yinklekay64/smart-contract-escrow" target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+      </footer>
     </WalletProvider>
   );
 }

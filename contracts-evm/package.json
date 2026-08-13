@@ -1,7 +1,7 @@
 {
-  "name": "smart-contract-payments",
+  "name": "smart-contract-escrow-evm",
   "version": "1.0.0",
-  "description": "Decentralized Web3 payment system for on-chain payments, invoicing, and subscriptions",
+  "description": "EVM/Solidity secondary track of smart-contract-escrow: on-chain payments, invoicing, and subscriptions",
   "license": "MIT",
   "scripts": {
     "compile": "hardhat compile",

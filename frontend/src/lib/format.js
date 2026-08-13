@@ -1,25 +1,22 @@
-export function shortAddress(addr) {
-  if (!addr) return "";
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+export function shortAddress(value) {
+  if (!value) return "";
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
 
-export function chainName(chainId) {
-  const names = {
-    1: "Ethereum",
-    11155111: "Sepolia",
-    1337: "Localhost",
-    31337: "Hardhat",
-  };
-  return names[chainId] || `Chain ${chainId}`;
+export function shortHash(value) {
+  if (!value) return "";
+  return `${value.slice(0, 10)}…${value.slice(-6)}`;
 }
 
-export function txUrl(chainId, hash) {
-  if (chainId === 1) return `https://etherscan.io/tx/${hash}`;
-  if (chainId === 11155111) return `https://sepolia.etherscan.io/tx/${hash}`;
-  return null;
+/** Normalize an ScVal-decoded number (could be number, bigint, or string). */
+export function toNumber(value) {
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "number") return value;
+  return Number(value);
 }
 
-export function shortHash(hash) {
-  if (!hash) return "";
-  return `${hash.slice(0, 10)}…${hash.slice(-6)}`;
+/** Format an i128 token amount into a fixed-ish decimal string. */
+export function formatAmount(value, decimals = 7) {
+  const n = toNumber(value);
+  return (n / 10 ** decimals).toLocaleString(undefined, { maximumFractionDigits: decimals });
 }

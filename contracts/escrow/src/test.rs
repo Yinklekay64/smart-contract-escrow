@@ -1,0 +1,546 @@
+#![cfg(test)]
+
+extern crate alloc;
+
+use super::Escrow;
+use super::EscrowClient;
+use crate::errors::EscrowError;
+use crate::state::State;
+use alloc::rc::Rc;
+use soroban_sdk::testutils::{Address as _, Deployer as _, Ledger};
+use soroban_sdk::token::{StellarAssetClient, TokenClient};
+use soroban_sdk::xdr::{
+    AccountEntry, AccountEntryExt, AccountId, Asset, ContractId, Hash, LedgerEntry,
+    LedgerEntryData, LedgerEntryExt, LedgerKey, LedgerKeyAccount, Limits, PublicKey, ScAddress,
+    SequenceNumber, Thresholds, Uint256, VecM, WriteXdr,
+};
+use soroban_sdk::{Address, Bytes, Env, TryFromVal};
+
+const AMOUNT: i128 = 1_000;
+const TIMEOUT: u64 = 3_600;
+
+struct Fixture {
+    env: Env,
+    buyer: Address,
+    seller: Address,
+    arbiter: Address,
+    token: Address,
+    escrow_id: Address,
+}
+
+impl Fixture {
+    fn client(&self) -> EscrowClient<'_> {
+        EscrowClient::new(&self.env, &self.escrow_id)
+    }
+
+    fn token_client(&self) -> TokenClient<'_> {
+        TokenClient::new(&self.env, &self.token)
+    }
+}
+
+fn setup() -> Fixture {
+    let env = Env::default();
+    let buyer = Address::generate(&env);
+    let seller = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let admin = Address::generate(&env);
+
+    let sac = env.register_stellar_asset_contract_v2(admin.clone());
+    let token = sac.address();
+
+    // Fund the buyer so it can cover the escrow deposit.
+    let token_admin = StellarAssetClient::new(&env, &token);
+    env.mock_all_auths();
+    token_admin.mint(&buyer, &AMOUNT);
+
+    let escrow_id = env.register(
+        Escrow,
+        (
+            buyer.clone(),
+            seller.clone(),
+            Some(arbiter.clone()),
+            token.clone(),
+            AMOUNT,
+            TIMEOUT,
+        ),
+    );
+
+    Fixture {
+        env,
+        buyer,
+        seller,
+        arbiter,
+        token,
+        escrow_id,
+    }
+}
+
+/// The native XLM Stellar Asset Contract (SAC) address. Deploying the SAC for
+/// the native asset registers its built-in code and returns the deterministic,
+/// network-wide address.
+fn native_sac(env: &Env) -> Address {
+    let bytes = Asset::Native.to_xdr(Limits::none()).unwrap();
+    env.deployer()
+        .with_stellar_asset(Bytes::from_slice(env, &bytes))
+        .deploy()
+}
+
+/// Generate a real Ed25519 account address (G...). `Address::generate` always
+/// produces contract addresses (C...), which cannot hold a native XLM balance,
+/// so we reuse its 32 bytes as a key and wrap them as an account.
+fn generate_account(env: &Env) -> Address {
+    let contract = Address::generate(env);
+    let key = match ScAddress::from(&contract) {
+        ScAddress::Contract(ContractId(Hash(key))) => key,
+        _ => panic!("expected a contract address"),
+    };
+    Address::try_from_val(
+        env,
+        &ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(key)))),
+    )
+    .unwrap()
+}
+
+/// Create an account ledger entry with a native XLM `balance`, so the native
+/// SAC reports the account as funded.
+fn fund_native(env: &Env, address: &Address, amount: i64) {
+    let account_id: AccountId = address.try_into().unwrap();
+    let key = Rc::new(LedgerKey::Account(LedgerKeyAccount {
+        account_id: account_id.clone(),
+    }));
+    let entry = Rc::new(LedgerEntry {
+        data: LedgerEntryData::Account(AccountEntry {
+            account_id,
+            balance: amount,
+            flags: 0,
+            home_domain: Default::default(),
+            inflation_dest: None,
+            num_sub_entries: 0,
+            seq_num: SequenceNumber(0),
+            thresholds: Thresholds([1; 4]),
+            signers: VecM::default(),
+            ext: AccountEntryExt::V0,
+        }),
+        last_modified_ledger_seq: 0,
+        ext: LedgerEntryExt::V0,
+    });
+    env.host().add_ledger_entry(&key, &entry, None).unwrap();
+}
+
+#[test]
+fn deposit_locks_funds_and_transitions_state() {
+    let f = setup();
+    let c = f.client();
+    assert_eq!(c.state(), State::AwaitingPayment);
+
+    f.env.mock_all_auths();
+    c.deposit();
+
+    assert_eq!(c.state(), State::AwaitingDelivery);
+    assert_eq!(f.token_client().balance(&f.escrow_id), AMOUNT);
+    assert_eq!(f.token_client().balance(&f.buyer), 0);
+}
+
+#[test]
+fn deposit_authorizes_buyer() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+
+    // The contract must have required the buyer's authorization.
+    let auths = f.env.auths();
+    assert!(auths.iter().any(|(addr, _)| *addr == f.buyer));
+}
+
+#[test]
+fn deposit_without_authorization_fails() {
+    // A dedicated env with no mocked authorization, so `require_auth` fails.
+    let env = Env::default();
+    let buyer = Address::generate(&env);
+    let seller = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    let escrow_id = env.register(
+        Escrow,
+        (buyer.clone(), seller, Some(arbiter), token, AMOUNT, TIMEOUT),
+    );
+    let c = EscrowClient::new(&env, &escrow_id);
+
+    assert!(c.try_deposit().is_err());
+    assert_eq!(c.state(), State::AwaitingPayment);
+}
+
+#[test]
+fn deposit_twice_fails() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    assert!(c.try_deposit().is_err());
+}
+
+#[test]
+fn mark_delivered_sets_deadline() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+
+    assert!(c.delivered());
+    assert_eq!(c.deadline(), TIMEOUT); // timestamp 0 + TIMEOUT
+    assert_eq!(c.state(), State::AwaitingDelivery);
+}
+
+#[test]
+fn mark_delivered_authorizes_seller() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+
+    let auths = f.env.auths();
+    assert!(auths.iter().any(|(addr, _)| *addr == f.seller));
+}
+
+#[test]
+fn mark_delivered_twice_fails() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+    assert!(c.try_mark_delivered().is_err());
+}
+
+#[test]
+fn confirm_releases_funds_to_seller() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+    c.confirm();
+
+    assert_eq!(c.state(), State::Complete);
+    assert_eq!(f.token_client().balance(&f.escrow_id), 0);
+    assert_eq!(f.token_client().balance(&f.seller), AMOUNT);
+}
+
+#[test]
+fn confirm_before_delivery_fails() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    // Seller has not marked delivery yet.
+    assert!(c.try_confirm().is_err());
+    assert_eq!(c.state(), State::AwaitingDelivery);
+}
+
+#[test]
+fn confirm_after_window_expired_fails() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered(); // deadline = TIMEOUT
+
+    f.env.ledger().set_timestamp(TIMEOUT + 1);
+    assert!(c.try_confirm().is_err());
+    assert_eq!(c.state(), State::AwaitingDelivery);
+}
+
+#[test]
+fn dispute_moves_to_disputed() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+    c.dispute();
+
+    assert_eq!(c.state(), State::Disputed);
+}
+
+#[test]
+fn dispute_after_window_expired_fails() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+
+    f.env.ledger().set_timestamp(TIMEOUT + 1);
+    assert!(c.try_dispute().is_err());
+    assert_eq!(c.state(), State::AwaitingDelivery);
+}
+
+#[test]
+fn resolve_releases_to_seller() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+    c.dispute();
+    c.resolve(&true);
+
+    assert_eq!(c.state(), State::Resolved);
+    assert_eq!(f.token_client().balance(&f.seller), AMOUNT);
+}
+
+#[test]
+fn resolve_refunds_buyer() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+    c.dispute();
+    c.resolve(&false);
+
+    assert_eq!(c.state(), State::Refunded);
+    assert_eq!(f.token_client().balance(&f.buyer), AMOUNT);
+}
+
+#[test]
+fn resolve_authorizes_arbiter() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+    c.dispute();
+    c.resolve(&true);
+
+    let auths = f.env.auths();
+    assert!(auths.iter().any(|(addr, _)| *addr == f.arbiter));
+}
+
+#[test]
+fn refund_before_delivery_returns_funds() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.refund();
+
+    assert_eq!(c.state(), State::Refunded);
+    assert_eq!(f.token_client().balance(&f.buyer), AMOUNT);
+}
+
+#[test]
+fn refund_after_delivery_fails() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+    assert!(c.try_refund().is_err());
+    assert_eq!(c.state(), State::AwaitingDelivery);
+}
+
+#[test]
+fn release_after_timeout_pays_seller() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+
+    f.env.ledger().set_timestamp(TIMEOUT + 1);
+    c.release();
+
+    assert_eq!(c.state(), State::Complete);
+    assert_eq!(f.token_client().balance(&f.seller), AMOUNT);
+}
+
+#[test]
+fn release_before_timeout_fails() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+
+    f.env.ledger().set_timestamp(TIMEOUT);
+    assert!(c.try_release().is_err());
+    assert_eq!(c.state(), State::AwaitingDelivery);
+}
+
+#[test]
+fn release_before_delivery_fails() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    // No mark_delivered yet, so there is no deadline to enforce.
+    assert!(c.try_release().is_err());
+    assert_eq!(c.state(), State::AwaitingDelivery);
+}
+
+#[test]
+fn state_changes_extend_instance_ttl() {
+    let f = setup();
+    let c = f.client();
+
+    // Fund the escrow first, then shrink its instance TTL close to expiry.
+    f.env.mock_all_auths();
+    c.deposit();
+
+    let ttl = f.env.deployer().get_contract_instance_ttl(&f.escrow_id);
+    let seq = f.env.ledger().sequence();
+    f.env.ledger().set_sequence_number(seq + ttl - 1_000);
+
+    let reduced = f.env.deployer().get_contract_instance_ttl(&f.escrow_id);
+    assert!(reduced <= 1_000, "expected reduced TTL, got {reduced}");
+
+    // A state-changing call re-extends the instance TTL.
+    f.env.mock_all_auths();
+    c.mark_delivered();
+
+    let after = f.env.deployer().get_contract_instance_ttl(&f.escrow_id);
+    assert!(after > 100_000, "TTL was not extended: {after}");
+}
+
+#[test]
+#[should_panic(expected = "amount must be positive")]
+fn constructor_rejects_zero_amount() {
+    let env = Env::default();
+    let buyer = Address::generate(&env);
+    let seller = Address::generate(&env);
+    let arbiter = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    env.register(
+        Escrow,
+        (buyer, seller, Some(arbiter), token, 0i128, TIMEOUT),
+    );
+}
+
+#[test]
+#[should_panic(expected = "buyer and seller must differ")]
+fn constructor_rejects_same_parties() {
+    let env = Env::default();
+    let party = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    env.register(
+        Escrow,
+        (
+            party.clone(),
+            party,
+            None::<Address>,
+            token,
+            AMOUNT,
+            TIMEOUT,
+        ),
+    );
+}
+
+#[test]
+#[should_panic(expected = "timeout must be positive")]
+fn constructor_rejects_zero_timeout() {
+    let env = Env::default();
+    let buyer = Address::generate(&env);
+    let seller = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(Address::generate(&env))
+        .address();
+    env.register(
+        Escrow,
+        (buyer, seller, None::<Address>, token, AMOUNT, 0u64),
+    );
+}
+
+#[test]
+fn native_xlm_deposit_lifecycle() {
+    let env = Env::default();
+    let buyer = generate_account(&env);
+    let seller = generate_account(&env);
+    let arbiter = generate_account(&env);
+
+    let native = native_sac(&env);
+    let native_token = TokenClient::new(&env, &native);
+
+    fund_native(&env, &buyer, AMOUNT as i64);
+    fund_native(&env, &seller, 0);
+
+    let escrow_id = env.register(
+        Escrow,
+        (
+            buyer.clone(),
+            seller.clone(),
+            Some(arbiter.clone()),
+            native.clone(),
+            AMOUNT,
+            TIMEOUT,
+        ),
+    );
+    let c = EscrowClient::new(&env, &escrow_id);
+
+    assert_eq!(native_token.balance(&buyer), AMOUNT);
+
+    env.mock_all_auths();
+    c.deposit();
+    assert_eq!(c.state(), State::AwaitingDelivery);
+    assert_eq!(native_token.balance(&escrow_id), AMOUNT);
+    assert_eq!(native_token.balance(&buyer), 0);
+
+    c.mark_delivered();
+    c.confirm();
+    assert_eq!(c.state(), State::Complete);
+    assert_eq!(native_token.balance(&seller), AMOUNT);
+    assert_eq!(native_token.balance(&escrow_id), 0);
+}
+
+#[test]
+fn native_xlm_refund_returns_funds() {
+    let env = Env::default();
+    let buyer = generate_account(&env);
+    let seller = generate_account(&env);
+
+    let native = native_sac(&env);
+    let native_token = TokenClient::new(&env, &native);
+
+    fund_native(&env, &buyer, AMOUNT as i64);
+    fund_native(&env, &seller, 0);
+
+    let escrow_id = env.register(
+        Escrow,
+        (
+            buyer.clone(),
+            seller.clone(),
+            None::<Address>,
+            native.clone(),
+            AMOUNT,
+            TIMEOUT,
+        ),
+    );
+    let c = EscrowClient::new(&env, &escrow_id);
+
+    env.mock_all_auths();
+    c.deposit();
+    c.refund();
+
+    assert_eq!(c.state(), State::Refunded);
+    assert_eq!(native_token.balance(&buyer), AMOUNT);
+    assert_eq!(native_token.balance(&escrow_id), 0);
+}
+
+// A tiny guard against an unused-error-code regression: keep the mapping in
+// sync with errors.rs by exercising the concrete discriminants.
+#[test]
+fn error_codes_are_stable() {
+    assert_eq!(EscrowError::Unauthorized as u32, 1);
+    assert_eq!(EscrowError::InvalidState as u32, 2);
+    assert_eq!(EscrowError::WindowExpired as u32, 10);
+    assert_eq!(EscrowError::NoArbiter as u32, 11);
+}

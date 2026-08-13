@@ -1,160 +1,149 @@
-# smart-contract-payments
+<p align="center">
+  <img src="assets/logo.svg" alt="smart-contract-escrow logo" width="128" height="128" />
+</p>
 
-A decentralized Web3 payment system that lets users send and receive payments
-on-chain — in native ETH or whitelisted ERC-20 stablecoins — with support for
-invoicing and recurring subscription payments.
+<h1 align="center">smart-contract-escrow</h1>
 
-Built with **Hardhat** + **OpenZeppelin Contracts v5** (Solidity `^0.8.24`).
+<p align="center">
+  A Stellar-native, decentralized escrow platform built with <strong>Soroban</strong>.
+</p>
 
-## Contracts
+<p align="center">
+  <a href="#license"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
+  <a href="https://github.com/Yinklekay64/smart-contract-escrow/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Yinklekay64/smart-contract-escrow/ci.yml?branch=main" /></a>
+</p>
 
-| Contract            | Purpose                                                                                          |
-| ------------------- | ------------------------------------------------------------------------------------------------ |
-| `PaymentProcessor`  | One-time payments in ETH/whitelisted ERC-20, platform fees, batch payments, and refunds.         |
-| `Invoice`           | Merchants create on-chain invoices (amount, token, due date, memo); payers fulfill them.         |
-| `Subscription`      | Recurring ERC-20 payments that pull a fixed amount from an approved allowance at defined intervals. |
+---
 
-### PaymentProcessor
+## Problem
 
-- `pay(recipient, token, amount)` — pay directly. Use `token = address(0)` for
-  ETH (send `amount` ETH with the call) or a whitelisted ERC-20.
-- `batchPay(PaymentInput[])` — pay multiple recipients in one transaction.
-- `refund(paymentId)` — the recipient (or an admin) refunds a completed payment
-  within `refundWindow`. The payer receives the **net** amount; the platform fee
-  is non-refundable.
-- A configurable fee (`feeBps`, basis points) is routed to `treasury`.
-- Role-based access control:
-  - `FEE_MANAGER_ROLE` — set fee, treasury, refund window.
-  - `WHITELIST_MANAGER_ROLE` — add/remove whitelisted tokens.
-  - `PAUSER_ROLE` — pause/unpause (emergency stop).
-- Protected by `ReentrancyGuard`, `Pausable`, and the checks-effects-interactions
-  pattern. Events: `PaymentSent`, `BatchPayment`, `Refunded`, `FeeUpdated`,
-  `TreasuryUpdated`, `TokenWhitelisted`, `TokenRemovedFromWhitelist`.
+Sending value to a counterparty you don't fully trust is risky: the seller may
+never deliver, or the buyer may never pay after delivery. Traditional escrow
+services introduce a centralized, trusted middleman with custody of the funds.
 
-### Invoice
+`smart-contract-escrow` replaces the middleman with a **Soroban smart contract**
+that holds funds in escrow and only releases them when the agreed conditions
+are met — with an optional **arbiter** to settle disputes. Funds are
+self-custodied by the contract, not by any trusted operator.
 
-- `createInvoice(token, amount, dueDate, memo)` — the caller is the merchant.
-  Pass `dueDate = 0` for no expiry.
-- `payInvoice(invoiceId)` — pay in ETH (send `amount`) or ERC-20 (approve first).
-  The fee is locked in at creation time.
-- `cancelInvoice(invoiceId)` — merchant or owner only.
-- Events: `InvoiceCreated`, `InvoicePaid`, `InvoiceCancelled`.
+## Architecture overview
 
-### Subscription
+- **`Escrow`** — a single-deal contract with three roles (`buyer`, `seller`,
+  optional `arbiter`) and a strict state machine.
+- **`EscrowFactory`** — deploys and indexes many concurrent `Escrow` instances
+  from one address (factory pattern).
+- **Assets** — deposits use any Stellar Asset Contract (SAC) token (e.g. USDC)
+  or native XLM via the native asset SAC.
+- **Events** — every state transition emits a typed contract event.
 
-- `createSubscription(merchant, token, amount, interval, maxCharges)` — the caller
-  is the subscriber and must approve this contract for `amount * maxCharges`.
-- `charge(subscriptionId)` — anyone may call once the interval has elapsed to pull
-  a charge from the subscriber's allowance to the merchant.
-- `cancel(subscriptionId)` — subscriber or merchant.
-- **ERC-20 only**: recurring payments use the "pull from approved allowance" model,
-  which native ETH does not support.
-- Events: `SubscriptionCreated`, `SubscriptionCharged`, `SubscriptionCancelled`.
+```
+AwaitingPayment ── deposit() ──▶ AwaitingDelivery
+AwaitingDelivery ── confirm() / release() ──▶ Complete
+AwaitingDelivery ── dispute() ──▶ Disputed
+AwaitingDelivery ── refund() ──▶ Refunded
+Disputed ── resolve(release) ──▶ Resolved
+Disputed ── resolve(refund) ──▶ Refunded
+```
 
-## Getting started
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full flow and
+[`docs/SECURITY.md`](docs/SECURITY.md) for the threat model.
+
+## Repository layout
+
+```
+├── contracts/                 # Soroban contracts (Rust)
+│   ├── escrow/                #   Escrow state machine
+│   └── factory/               #   Factory + index
+├── contracts-evm/             # Optional EVM/Solidity secondary track
+├── tests/                     # End-to-end integration tests
+├── scripts/                   # Deploy & testnet-setup scripts
+├── frontend/                  # React + Stellar (Freighter) frontend
+├── docs/                      # Architecture, security, roadmap
+└── assets/                    # Branding
+```
+
+## Prerequisites
+
+- Rust (stable) — https://rustup.rs
+- Stellar CLI (`stellar`) — https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup
+- The `wasm32v1-none` target: `rustup target add wasm32v1-none`
+
+## Build & test
 
 ```bash
-npm install
-cp .env.example .env   # fill in real values
-npx hardhat compile
+make build                 # builds the Escrow and Factory wasm files
+make test                  # runs unit + integration tests
+make clippy                # lints the workspace
+make fmt-check             # verifies formatting
 ```
 
-## Testing
+The test suite covers the deposit → confirm / dispute → resolve / refund and
+timeout auto-release paths, plus adversarial cases: unauthorized callers,
+double confirmation/deposit, zero-value and expired-timeout inputs.
+
+## Deploy to Testnet
 
 ```bash
-npx hardhat test
+./scripts/testnet-setup.sh      # register testnet + create a funded identity
+./scripts/build.sh              # build both WASM contracts
+./scripts/deploy-testnet.sh     # deploy the EscrowFactory to testnet
+./scripts/invoke-examples.sh    # print example CLI invocations for every function
 ```
 
-To include a gas usage table with the run:
+`deploy.sh` prints the factory contract id and writes it to
+`deployments/factory.testnet.txt`. The factory uploads the `Escrow` Wasm
+on-chain during its own constructor, so no separate escrow deployment is
+required.
+
+## Usage
+
+Create an escrow through the factory:
 
 ```bash
-REPORT_GAS=true npx hardhat test
+stellar contract invoke \
+  --id <FACTORY_ID> \
+  --network testnet \
+  --source-account escrow-dev \
+  -- create_escrow \
+  --buyer <BUYER> \
+  --seller <SELLER> \
+  --arbiter <ARBITER> \
+  --token <TOKEN_CONTRACT_ID> \
+  --amount 10000000 \
+  --timeout 604800
 ```
 
-The suite covers the one-time payment lifecycle (ETH/ERC-20, fee splits, batch
-payments, refunds, access control, pausing), invoice create/pay/cancel,
-subscription charge/cancel flows, and reentrancy attacks via malicious
-token/receiver mocks, including failure and edge cases.
+`<TOKEN_CONTRACT_ID>` is any SAC token (e.g. USDC) or the native XLM SAC:
+`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` (testnet).
 
-## Deployment
+The returned id indexes the deployed escrow; retrieve its address with
+`get_escrow(id)`, then interact directly:
 
-Local:
-
-```bash
-npx hardhat node                        # terminal 1
-npx hardhat run scripts/deploy.js --network localhost   # terminal 2
-```
-
-Sepolia testnet (deploys and auto-verifies on Etherscan):
-
-```bash
-npm run deploy:sepolia
-```
-
-If verification is skipped or fails (e.g. Etherscan hasn't indexed the
-contracts yet), retry with:
-
-```bash
-npm run verify:sepolia
-```
-
-Deployment addresses are printed to the console and saved to
-`deployments/<network>.json` (git-ignored) for wiring up the frontend.
-
-Required `.env` values for Sepolia: `PRIVATE_KEY`, `SEPOLIA_RPC_URL` (or
-`ALCHEMY_API_KEY`), and `ETHERSCAN_API_KEY` for verification. `TREASURY_ADDRESS`,
-`FEE_BPS`, and `REFUND_WINDOW` configure the contracts (an empty/zero
-`TREASURY_ADDRESS` falls back to the deployer).
-
-## Example usage
-
-```js
-const { ethers } = require("hardhat");
-
-// One-time ETH payment
-await processor.pay(recipient, ethers.ZeroAddress, ethers.parseEther("1"), {
-  value: ethers.parseEther("1"),
-});
-
-// Whitelist + pay in ERC-20
-await processor.whitelistToken(tokenAddress);
-await token.approve(processorAddress, amount);
-await processor.pay(recipient, tokenAddress, amount);
-```
+- `deposit` (buyer) — lock funds
+- `mark_delivered` (seller) — open the buyer's response window
+- `confirm` / `dispute` (buyer) — accept delivery or raise a dispute
+- `resolve(release_to_seller)` (arbiter) — settle a dispute
+- `release` (anyone) — auto-release after the window expires
+- `refund` (seller) — cancel before delivery
 
 ## Frontend
 
-A React frontend (Vite + ethers.js + MetaMask) lives in `frontend/` with pages
-for sending payments, creating/paying invoices, managing subscriptions, and a
-merchant dashboard.
+A React app (Vite + `@stellar/stellar-sdk` + Freighter wallet) lives in
+`frontend/`:
 
 ```bash
-# 1. Export the compiled ABIs into the frontend
-node scripts/export-abis.js   # or: npm run export:abis
-
-# 2. Configure the deployed contract addresses
 cd frontend
-cp .env.example .env          # set the VITE_* contract addresses
-
-# 3. Run it
 npm install
-npm run dev                   # http://localhost:5173
+cp .env.example .env   # set VITE_FACTORY_CONTRACT_ID
+npm run dev
 ```
 
-The app connects via MetaMask (`window.ethereum`) and targets the chain set in
-`VITE_CHAIN_ID` (Sepolia by default). Build a production bundle with
-`npm run build`.
+## Roadmap & contributing
 
-## CI
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for milestones and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) to get involved. Contributors are welcome —
+check the open issues and pick one up.
 
-`.github/workflows/ci.yml` runs on pushes and PRs to `main`:
+## License
 
-- **Test & gas report** — `npm ci`, compile, then `REPORT_GAS=true npx hardhat test`.
-- **Slither static analysis** — runs [slither-action](https://github.com/crytic/slither-action)
-  and uploads findings to GitHub code scanning (non-blocking).
-
-## Security notes
-
-- Never commit `.env` or private keys — use `.env.example` as the template.
-- Fees are expressed in basis points (`10_000` = 100%) and are non-refundable.
-- The contracts are unaudited; get a professional audit before mainnet use.
+[MIT](LICENSE)
