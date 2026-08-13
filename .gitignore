@@ -9,6 +9,10 @@ coverage.json
 typechain/
 typechain-types/
 
+# Frontend build output
+dist/
+dist-ssr/
+
 # Environment files (never commit secrets)
 .env
 .env.local

@@ -1,0 +1,9 @@
+export const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 11155111);
+
+export const PAYMENT_PROCESSOR_ADDRESS = import.meta.env.VITE_PAYMENT_PROCESSOR_ADDRESS || "";
+export const INVOICE_ADDRESS = import.meta.env.VITE_INVOICE_ADDRESS || "";
+export const SUBSCRIPTION_ADDRESS = import.meta.env.VITE_SUBSCRIPTION_ADDRESS || "";
+
+export const ADDRESSES_CONFIGURED = Boolean(
+  PAYMENT_PROCESSOR_ADDRESS && INVOICE_ADDRESS && SUBSCRIPTION_ADDRESS
+);
