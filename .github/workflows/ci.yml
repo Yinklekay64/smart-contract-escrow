@@ -11,9 +11,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test & gas report
+  test-evm:
+    name: Test EVM contracts
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts-evm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,6 +26,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: contracts-evm/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -48,7 +52,7 @@ jobs:
         id: slither
         with:
           node-version: 20
-          target: .
+          target: contracts-evm
           sarif: results.sarif
           fail-on: none
           slither-args: --exclude-dependencies
