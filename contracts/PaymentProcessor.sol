@@ -154,10 +154,10 @@ contract PaymentProcessor is AccessControl, ReentrancyGuard, Pausable {
     }
 
     /// @notice Refund a completed payment. Only the recipient (or an admin) may
-    ///         call, and only within `refundWindow`. For ERC-20 payments the
-    ///         recipient must have approved this contract for the full amount;
-    ///         for ETH the recipient sends `amount` ETH with the call. The
-    ///         platform fee is non-refundable.
+    ///         call, and only within `refundWindow`. The payer receives back the
+    ///         net amount (amount minus fee); the platform fee is non-refundable.
+    ///         For ERC-20 payments the recipient must have approved this contract
+    ///         for the net amount; for ETH the recipient sends the net amount.
     function refund(uint256 paymentId) external payable nonReentrant {
         Payment storage payment = payments[paymentId];
         if (payment.recipient == address(0) || payment.status != PaymentStatus.Completed) {
@@ -172,15 +172,16 @@ contract PaymentProcessor is AccessControl, ReentrancyGuard, Pausable {
 
         payment.status = PaymentStatus.Refunded;
 
+        uint256 netAmount = payment.amount - payment.feeAmount;
         if (payment.token == address(0)) {
-            if (msg.value != payment.amount) revert IncorrectEthValue();
-            _sendEth(payment.payer, payment.amount);
+            if (msg.value != netAmount) revert IncorrectEthValue();
+            _sendEth(payment.payer, netAmount);
         } else {
             if (msg.value != 0) revert UnexpectedEth();
-            IERC20(payment.token).safeTransferFrom(payment.recipient, payment.payer, payment.amount);
+            IERC20(payment.token).safeTransferFrom(payment.recipient, payment.payer, netAmount);
         }
 
-        emit Refunded(paymentId, payment.recipient, payment.amount);
+        emit Refunded(paymentId, payment.recipient, netAmount);
     }
 
     /// @notice Set the platform fee in basis points.
