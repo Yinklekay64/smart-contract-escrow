@@ -30,6 +30,11 @@ pub enum FactoryKey {
     Escrows,
 }
 
+/// Instance/code TTL policy for the long-lived factory index. Ledgers are ~5s
+/// apart, so `TTL_THRESHOLD` is ~7 days and `TTL_EXTEND_TO` is ~150 days.
+const TTL_THRESHOLD: u32 = 120_960;
+const TTL_EXTEND_TO: u32 = 2_592_000;
+
 /// Emitted when the factory deploys a new escrow.
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,6 +78,12 @@ impl EscrowFactory {
         amount: i128,
         timeout: u64,
     ) -> Result<u32, FactoryError> {
+        // Keep the factory's index alive; a revert rolls this back.
+        let max = env.storage().max_ttl();
+        env.storage()
+            .instance()
+            .extend_ttl(TTL_THRESHOLD.min(max), TTL_EXTEND_TO.min(max));
+
         buyer.require_auth();
 
         if amount <= 0 {

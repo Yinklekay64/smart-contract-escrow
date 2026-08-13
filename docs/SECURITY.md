@@ -41,6 +41,9 @@ The escrow holds real value, so the primary threats are:
 - `mark_delivered` is idempotence-guarded; the deadline is set exactly once.
 - After `mark_delivered`, the buyer's `confirm`/`dispute` window is bounded by
   `deadline`; past it, only `release` (auto-release to seller) is valid.
+- Every state-changing call extends the contract instance/code TTL (up to a
+  ~150-day ceiling, refreshed only below a ~7-day threshold), so long-lived
+  escrows do not lose their state to ledger expiry.
 
 ## Known limitations
 
@@ -51,8 +54,6 @@ The escrow holds real value, so the primary threats are:
   buyer.
 - **Arbiter is optional but recommended** — without an arbiter, a dispute can
   never be resolved (funds would be stuck in `Disputed`).
-- **Storage TTL** — instance storage lifetime is not explicitly extended;
-  long-lived escrows should have their storage bump-extended by an integrator.
 
 ## Audit status
 

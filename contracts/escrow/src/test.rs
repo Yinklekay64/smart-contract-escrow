@@ -4,7 +4,7 @@ use super::Escrow;
 use super::EscrowClient;
 use crate::errors::EscrowError;
 use crate::state::State;
-use soroban_sdk::testutils::{Address as _, Ledger};
+use soroban_sdk::testutils::{Address as _, Deployer as _, Ledger};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::{Address, Env};
 
@@ -322,6 +322,30 @@ fn release_before_delivery_fails() {
     // No mark_delivered yet, so there is no deadline to enforce.
     assert!(c.try_release().is_err());
     assert_eq!(c.state(), State::AwaitingDelivery);
+}
+
+#[test]
+fn state_changes_extend_instance_ttl() {
+    let f = setup();
+    let c = f.client();
+
+    // Fund the escrow first, then shrink its instance TTL close to expiry.
+    f.env.mock_all_auths();
+    c.deposit();
+
+    let ttl = f.env.deployer().get_contract_instance_ttl(&f.escrow_id);
+    let seq = f.env.ledger().sequence();
+    f.env.ledger().set_sequence_number(seq + ttl - 1_000);
+
+    let reduced = f.env.deployer().get_contract_instance_ttl(&f.escrow_id);
+    assert!(reduced <= 1_000, "expected reduced TTL, got {reduced}");
+
+    // A state-changing call re-extends the instance TTL.
+    f.env.mock_all_auths();
+    c.mark_delivered();
+
+    let after = f.env.deployer().get_contract_instance_ttl(&f.escrow_id);
+    assert!(after > 100_000, "TTL was not extended: {after}");
 }
 
 #[test]

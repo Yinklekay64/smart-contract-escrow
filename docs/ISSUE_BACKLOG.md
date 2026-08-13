@@ -14,10 +14,12 @@ Complexity legend:
 
 ## Bug fixes
 
-### ESC-01 · Extend storage TTL on state-changing calls
+### ESC-01 · Extend storage TTL on state-changing calls ✅
 
 - **Type:** bug
 - **Complexity:** High
+- **Status:** done — every state-changing call now bump-extends the instance/code
+  TTL (see `contracts/escrow/src/lib.rs` and `contracts/factory/src/lib.rs`).
 
 Instance storage (`state`, `deadline`, `delivered`) is never bump-extended, so a
 long-lived escrow's storage can expire and wipe its state while funds are still

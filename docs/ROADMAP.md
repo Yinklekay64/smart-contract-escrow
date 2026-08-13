@@ -25,7 +25,7 @@
 
 - [ ] Native XLM deposits in addition to SAC tokens
 - [ ] Multi-asset escrows (basket of assets per deal)
-- [ ] Storage TTL extension on state-changing calls
+- [x] Storage TTL extension on state-changing calls
 
 ## v0.5 — Platform hardening
 

@@ -9,6 +9,11 @@ use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, Env, Muxe
 use errors::EscrowError;
 use state::{State, StorageKey};
 
+/// Instance/code TTL policy for long-lived escrows. Ledgers are ~5s apart, so
+/// `TTL_THRESHOLD` is ~7 days and `TTL_EXTEND_TO` is ~150 days.
+const TTL_THRESHOLD: u32 = 120_960;
+const TTL_EXTEND_TO: u32 = 2_592_000;
+
 /// A single-deal escrow.
 ///
 /// Three roles — `buyer`, `seller`, and an optional `arbiter` — interact over
@@ -49,6 +54,16 @@ impl Escrow {
         let escrow = env.current_contract_address();
         let to = MuxedAddress::from(recipient);
         TokenClient::new(env, &token).transfer(&escrow, &to, &amount);
+    }
+
+    /// Extend the contract instance/code TTL when it falls below the
+    /// threshold, so long-lived escrows don't lose their state to expiry. A
+    /// call that later reverts also rolls this extension back.
+    fn bump_instance_ttl(env: &Env) {
+        let max = env.storage().max_ttl();
+        let extend_to = TTL_EXTEND_TO.min(max);
+        let threshold = TTL_THRESHOLD.min(extend_to);
+        env.storage().instance().extend_ttl(threshold, extend_to);
     }
 }
 
@@ -97,6 +112,8 @@ impl Escrow {
     /// Transitions `AwaitingPayment → AwaitingDelivery`. The transfer reverts
     /// atomically if the buyer has insufficient balance or authorization.
     pub fn deposit(env: Env) -> Result<(), EscrowError> {
+        Self::bump_instance_ttl(&env);
+
         let buyer: Address = env.storage().instance().get(&StorageKey::Buyer).unwrap();
         buyer.require_auth();
 
@@ -116,6 +133,8 @@ impl Escrow {
     /// The seller marks the goods/services as delivered, opening the buyer's
     /// response window (deadline = now + timeout).
     pub fn mark_delivered(env: Env) -> Result<(), EscrowError> {
+        Self::bump_instance_ttl(&env);
+
         let seller: Address = env.storage().instance().get(&StorageKey::Seller).unwrap();
         seller.require_auth();
 
@@ -146,6 +165,8 @@ impl Escrow {
     ///
     /// Only valid within the response window after delivery.
     pub fn confirm(env: Env) -> Result<(), EscrowError> {
+        Self::bump_instance_ttl(&env);
+
         let buyer: Address = env.storage().instance().get(&StorageKey::Buyer).unwrap();
         buyer.require_auth();
 
@@ -175,6 +196,8 @@ impl Escrow {
 
     /// The buyer raises a dispute, pausing the escrow for the arbiter.
     pub fn dispute(env: Env) -> Result<(), EscrowError> {
+        Self::bump_instance_ttl(&env);
+
         let buyer: Address = env.storage().instance().get(&StorageKey::Buyer).unwrap();
         buyer.require_auth();
 
@@ -198,6 +221,8 @@ impl Escrow {
     /// Auto-release funds to the seller once the buyer's response window has
     /// expired without a confirmation or dispute. Callable by anyone.
     pub fn release(env: Env) -> Result<(), EscrowError> {
+        Self::bump_instance_ttl(&env);
+
         Self::expect_state(&env, State::AwaitingDelivery)?;
 
         let delivered: bool = env
@@ -225,6 +250,8 @@ impl Escrow {
     /// The arbiter settles a dispute: release to the seller (`true`) or refund
     /// the buyer (`false`).
     pub fn resolve(env: Env, release_to_seller: bool) -> Result<(), EscrowError> {
+        Self::bump_instance_ttl(&env);
+
         Self::expect_state(&env, State::Disputed)?;
 
         let arbiter: Option<Address> = env.storage().instance().get(&StorageKey::Arbiter).unwrap();
@@ -250,6 +277,8 @@ impl Escrow {
 
     /// The seller cancels before delivering and refunds the buyer.
     pub fn refund(env: Env) -> Result<(), EscrowError> {
+        Self::bump_instance_ttl(&env);
+
         let seller: Address = env.storage().instance().get(&StorageKey::Seller).unwrap();
         seller.require_auth();
 
