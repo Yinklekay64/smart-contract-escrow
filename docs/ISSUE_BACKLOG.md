@@ -1,8 +1,9 @@
 # Issue backlog
 
-Scoped, contributor-friendly issues for `smart-contract-escrow`. Each entry is
-ready to paste into a GitHub issue (use the `bug_report` / `feature_request`
-templates) and tag with the `complexity: trivial|medium|high` label.
+Scoped, contributor-friendly issues for `smart-contract-escrow`. These are now
+filed as live GitHub issues (see
+https://github.com/Yinklekay64/smart-contract-escrow/issues) with `complexity:*`
+and `area:*` labels. Entries marked ✅ below are already done.
 
 Complexity legend:
 
