@@ -85,7 +85,9 @@ double confirmation/deposit, zero-value and expired-timeout inputs.
 
 ```bash
 ./scripts/testnet-setup.sh      # register testnet + create a funded identity
-./scripts/deploy.sh             # deploy the EscrowFactory
+./scripts/build.sh              # build both WASM contracts
+./scripts/deploy-testnet.sh     # deploy the EscrowFactory to testnet
+./scripts/invoke-examples.sh    # print example CLI invocations for every function
 ```
 
 `deploy.sh` prints the factory contract id and writes it to

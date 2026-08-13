@@ -76,6 +76,45 @@ fn create_escrow_increments_and_indexes() {
 }
 
 #[test]
+fn list_escrows_by_user_indexes_participants() {
+    let f = setup();
+    let factory = f.factory();
+    let amount = 100i128;
+    let timeout = 3600u64;
+    let arbiter_opt = Some(f.arbiter.clone());
+
+    f.env.mock_all_auths();
+    let id0 = factory.create_escrow(
+        &f.buyer,
+        &f.seller,
+        &arbiter_opt,
+        &f.token,
+        &amount,
+        &timeout,
+    );
+    let id1 = factory.create_escrow(
+        &f.buyer,
+        &f.seller,
+        &arbiter_opt,
+        &f.token,
+        &amount,
+        &timeout,
+    );
+
+    let buyer_ids = factory.list_escrows_by_user(&f.buyer);
+    assert_eq!(buyer_ids.len(), 2);
+    assert_eq!(buyer_ids.get(0).unwrap(), id0);
+    assert_eq!(buyer_ids.get(1).unwrap(), id1);
+
+    assert_eq!(factory.list_escrows_by_user(&f.seller).len(), 2);
+    assert_eq!(factory.list_escrows_by_user(&f.arbiter).len(), 2);
+
+    // A stranger is in no escrows.
+    let stranger = Address::generate(&f.env);
+    assert_eq!(factory.list_escrows_by_user(&stranger).len(), 0);
+}
+
+#[test]
 fn create_escrow_rejects_invalid_parameters() {
     let f = setup();
     let factory = f.factory();

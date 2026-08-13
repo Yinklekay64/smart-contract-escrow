@@ -28,6 +28,7 @@ pub enum FactoryKey {
     WasmHash,
     Count,
     Escrows,
+    UserEscrows,
 }
 
 /// Instance/code TTL policy for the long-lived factory index. Ledgers are ~5s
@@ -51,6 +52,21 @@ pub struct EscrowCreated {
 #[contract]
 pub struct EscrowFactory;
 
+/// Append `id` to the reverse index of escrows a participant is involved in.
+fn push_to_user_index(env: &Env, user: &Address, id: u32) {
+    let mut index: Map<Address, Vec<u32>> = env
+        .storage()
+        .instance()
+        .get(&FactoryKey::UserEscrows)
+        .unwrap();
+    let mut ids = index.get(user.clone()).unwrap_or_else(|| Vec::new(env));
+    ids.push_back(id);
+    index.set(user.clone(), ids);
+    env.storage()
+        .instance()
+        .set(&FactoryKey::UserEscrows, &index);
+}
+
 #[contractimpl]
 impl EscrowFactory {
     /// Upload the embedded Escrow Wasm once and initialize the index.
@@ -63,6 +79,10 @@ impl EscrowFactory {
         env.storage()
             .instance()
             .set(&FactoryKey::Escrows, &Map::<u32, Address>::new(&env));
+        env.storage().instance().set(
+            &FactoryKey::UserEscrows,
+            &Map::<Address, Vec<u32>>::new(&env),
+        );
     }
 
     /// Deploy a new escrow and return its id.
@@ -130,6 +150,12 @@ impl EscrowFactory {
         env.storage().instance().set(&FactoryKey::Escrows, &escrows);
         env.storage().instance().set(&FactoryKey::Count, &(id + 1));
 
+        push_to_user_index(&env, &buyer, id);
+        push_to_user_index(&env, &seller, id);
+        if let Some(a) = &arbiter {
+            push_to_user_index(&env, a, id);
+        }
+
         env.events().publish_event(&EscrowCreated {
             id,
             escrow: escrow_address.clone(),
@@ -150,6 +176,17 @@ impl EscrowFactory {
         let escrows: Map<u32, Address> =
             env.storage().instance().get(&FactoryKey::Escrows).unwrap();
         escrows.get(id)
+    }
+
+    /// Ids of every escrow the given address participates in as buyer, seller,
+    /// or arbiter, in creation order.
+    pub fn list_escrows_by_user(env: Env, user: Address) -> Vec<u32> {
+        let index: Map<Address, Vec<u32>> = env
+            .storage()
+            .instance()
+            .get(&FactoryKey::UserEscrows)
+            .unwrap();
+        index.get(user).unwrap_or_else(|| Vec::new(&env))
     }
 }
 
