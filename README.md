@@ -65,9 +65,16 @@ npx hardhat compile
 npx hardhat test
 ```
 
+To include a gas usage table with the run:
+
+```bash
+REPORT_GAS=true npx hardhat test
+```
+
 The suite covers the one-time payment lifecycle (ETH/ERC-20, fee splits, batch
-payments, refunds, access control, pausing), invoice create/pay/cancel, and
-subscription charge/cancel flows, including failure and edge cases.
+payments, refunds, access control, pausing), invoice create/pay/cancel,
+subscription charge/cancel flows, and reentrancy attacks via malicious
+token/receiver mocks, including failure and edge cases.
 
 ## Deployment
 
@@ -137,6 +144,14 @@ npm run dev                   # http://localhost:5173
 The app connects via MetaMask (`window.ethereum`) and targets the chain set in
 `VITE_CHAIN_ID` (Sepolia by default). Build a production bundle with
 `npm run build`.
+
+## CI
+
+`.github/workflows/ci.yml` runs on pushes and PRs to `main`:
+
+- **Test & gas report** — `npm ci`, compile, then `REPORT_GAS=true npx hardhat test`.
+- **Slither static analysis** — runs [slither-action](https://github.com/crytic/slither-action)
+  and uploads findings to GitHub code scanning (non-blocking).
 
 ## Security notes
 
