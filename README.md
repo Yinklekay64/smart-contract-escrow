@@ -78,16 +78,26 @@ npx hardhat node                        # terminal 1
 npx hardhat run scripts/deploy.js --network localhost   # terminal 2
 ```
 
-Sepolia testnet:
+Sepolia testnet (deploys and auto-verifies on Etherscan):
 
 ```bash
-npx hardhat run scripts/deploy.js --network sepolia
-npx hardhat verify --network sepolia <PaymentProcessor address> <treasury> <feeBps> <refundWindow>
+npm run deploy:sepolia
 ```
+
+If verification is skipped or fails (e.g. Etherscan hasn't indexed the
+contracts yet), retry with:
+
+```bash
+npm run verify:sepolia
+```
+
+Deployment addresses are printed to the console and saved to
+`deployments/<network>.json` (git-ignored) for wiring up the frontend.
 
 Required `.env` values for Sepolia: `PRIVATE_KEY`, `SEPOLIA_RPC_URL` (or
 `ALCHEMY_API_KEY`), and `ETHERSCAN_API_KEY` for verification. `TREASURY_ADDRESS`,
-`FEE_BPS`, and `REFUND_WINDOW` configure the contracts.
+`FEE_BPS`, and `REFUND_WINDOW` configure the contracts (an empty/zero
+`TREASURY_ADDRESS` falls back to the deployer).
 
 ## Example usage
 

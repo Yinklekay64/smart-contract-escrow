@@ -13,6 +13,9 @@ typechain-types/
 dist/
 dist-ssr/
 
+# Deployment records (chain-specific addresses)
+deployments/
+
 # Environment files (never commit secrets)
 .env
 .env.local
