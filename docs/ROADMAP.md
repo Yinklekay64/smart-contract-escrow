@@ -29,6 +29,7 @@
 
 ## v0.5 — Platform hardening
 
+- [x] Owner-gated factory pause (emergency stop for new escrows)
 - [ ] Token allow/deny list on the factory
 - [ ] Optional platform fee to a treasury
 - [ ] Sub-account / custom-account auth tests

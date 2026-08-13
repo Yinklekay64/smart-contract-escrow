@@ -82,12 +82,12 @@ stellar contract invoke \\
   --source-account $BUYER \\
   -- confirm
 
-# 7. Buyer raises a dispute
+# 7. Buyer (or seller) raises a dispute
 stellar contract invoke \\
   --id $ESCROW_ADDRESS \\
   --network $NETWORK \\
   --source-account $BUYER \\
-  -- dispute
+  -- dispute --disputer $BUYER
 
 # 8. Arbiter resolves a dispute (release_to_seller: true | false)
 stellar contract invoke \\

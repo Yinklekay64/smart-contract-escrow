@@ -21,6 +21,9 @@ The escrow holds real value, so the primary threats are:
   ordering: validate, then update state and move funds, and never re-enter
   external contracts between a balance check and a transfer. Transfers happen
   through the standard Stellar Asset Contract interface only.
+- **Emergency stop / pause** — the factory owner can pause the creation of new
+  escrows, limiting exposure to a newly discovered bug. Pausing never affects
+  existing escrows, so funds already locked are not stranded by a pause.
 - **Stuck funds / griefing** — a buyer who deposits then disappears. Resolved
   by the auto-release path (`release`) after the seller marks delivery and the
   window expires, and by the seller `refund` path before delivery.
@@ -41,8 +44,9 @@ The escrow holds real value, so the primary threats are:
 - `buyer != seller` and the arbiter (if set) differs from both.
 - `amount > 0` and `timeout > 0` are enforced at construction.
 - `mark_delivered` is idempotence-guarded; the deadline is set exactly once.
-- After `mark_delivered`, the buyer's `confirm`/`dispute` window is bounded by
+- After `mark_delivered`, the `confirm`/`dispute` window is bounded by
   `deadline`; past it, only `release` (auto-release to seller) is valid.
+  `dispute` may be raised by either the buyer or the seller.
 - Every state-changing call extends the contract instance/code TTL (up to a
   ~150-day ceiling, refreshed only below a ~7-day threshold), so long-lived
   escrows do not lose their state to ledger expiry.

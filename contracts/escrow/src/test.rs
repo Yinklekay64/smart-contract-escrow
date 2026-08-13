@@ -262,9 +262,34 @@ fn dispute_moves_to_disputed() {
     f.env.mock_all_auths();
     c.deposit();
     c.mark_delivered();
-    c.dispute();
+    c.dispute(&f.buyer);
 
     assert_eq!(c.state(), State::Disputed);
+}
+
+#[test]
+fn seller_can_dispute() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+    c.dispute(&f.seller);
+
+    assert_eq!(c.state(), State::Disputed);
+}
+
+#[test]
+fn non_party_cannot_dispute() {
+    let f = setup();
+    let c = f.client();
+    f.env.mock_all_auths();
+    c.deposit();
+    c.mark_delivered();
+
+    let stranger = Address::generate(&f.env);
+    assert!(c.try_dispute(&stranger).is_err());
+    assert_eq!(c.state(), State::AwaitingDelivery);
 }
 
 #[test]
@@ -276,7 +301,7 @@ fn dispute_after_window_expired_fails() {
     c.mark_delivered();
 
     f.env.ledger().set_timestamp(TIMEOUT + 1);
-    assert!(c.try_dispute().is_err());
+    assert!(c.try_dispute(&f.buyer).is_err());
     assert_eq!(c.state(), State::AwaitingDelivery);
 }
 
@@ -287,7 +312,7 @@ fn resolve_releases_to_seller() {
     f.env.mock_all_auths();
     c.deposit();
     c.mark_delivered();
-    c.dispute();
+    c.dispute(&f.buyer);
     c.resolve(&true);
 
     assert_eq!(c.state(), State::Resolved);
@@ -301,7 +326,7 @@ fn resolve_refunds_buyer() {
     f.env.mock_all_auths();
     c.deposit();
     c.mark_delivered();
-    c.dispute();
+    c.dispute(&f.buyer);
     c.resolve(&false);
 
     assert_eq!(c.state(), State::Refunded);
@@ -315,7 +340,7 @@ fn resolve_authorizes_arbiter() {
     f.env.mock_all_auths();
     c.deposit();
     c.mark_delivered();
-    c.dispute();
+    c.dispute(&f.buyer);
     c.resolve(&true);
 
     let auths = f.env.auths();

@@ -121,10 +121,11 @@ The returned id indexes the deployed escrow; retrieve its address with
 
 - `deposit` (buyer) — lock funds
 - `mark_delivered` (seller) — open the buyer's response window
-- `confirm` / `dispute` (buyer) — accept delivery or raise a dispute
+- `confirm` (buyer) / `dispute` (buyer or seller) — accept delivery or raise a dispute
 - `resolve(release_to_seller)` (arbiter) — settle a dispute
 - `release` (anyone) — auto-release after the window expires
 - `refund` (seller) — cancel before delivery
+- `pause` / `unpause` (factory owner) — emergency-stop new escrow creation
 
 ## Frontend
 
