@@ -48,6 +48,28 @@ Disputed ── resolve(refund) ──▶ Refunded
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full flow and
 [`docs/SECURITY.md`](docs/SECURITY.md) for the threat model.
 
+## Status — what's implemented
+
+Everything below is committed, tested, and passing CI. **Audit status:
+unaudited — testnet only.**
+
+| Area | Done |
+| --- | --- |
+| **Escrow contract** | Full state machine (`AwaitingPayment → AwaitingDelivery → Complete \| Disputed → Resolved \| Refunded`), buyer/seller/optional-arbiter roles, `deposit`, `mark_delivered`, `confirm`, `dispute` (buyer or seller), `resolve`, `release` (timeout auto-release), `refund`, storage-TTL extension, typed events. |
+| **Assets** | Any Stellar Asset Contract token (USDC, wrapped) **and** native XLM via the native asset SAC. |
+| **Factory** | Deploys and indexes concurrent escrows, `get_escrow`, `list_escrows_by_user`, owner-gated `pause`/`unpause` (emergency stop for new escrows). |
+| **Security** | `require_auth` on every role-gated call, strict state checks, check-effects-interactions ordering (no reentrancy-equivalent), double-spend/double-confirm guards, zero-value + timeout validation, factory pause. |
+| **Tests** | **38 passing** — 29 escrow unit, 5 factory unit, 4 end-to-end integration (confirm, dispute→resolve both ways, timeout auto-release, concurrent escrows) plus adversarial cases (unauthorized callers, invalid transitions, insufficient balance). |
+| **CI** | `.github/workflows/ci.yml` — Soroban (build + test + `clippy -D warnings` + `fmt --check`) and EVM (test + Slither) jobs on push/PR. |
+| **Tooling** | `scripts/build.sh`, `deploy-testnet.sh`, `testnet-setup.sh`, `invoke-examples.sh`, root `Makefile`. |
+| **Docs** | `README`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/ROADMAP.md`, `docs/REGISTRATION.md`, `CONTRIBUTING.md`. |
+| **Frontend** | React + Vite + Freighter + `@stellar/stellar-sdk` — create-escrow form, escrow dashboard, role actions, native-XLM quick-select. |
+| **EVM secondary track** | `contracts-evm/` Solidity/Hardhat payment gateway (37 tests), relocated and CI-retargeted. |
+| **Contributor-ready** | 15 scoped, labeled GitHub issues (`complexity:*`, `area:*`), issue + PR templates. |
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's still open (multi-asset
+escrows, token allow-list, platform fee, professional audit).
+
 ## Repository layout
 
 ```
