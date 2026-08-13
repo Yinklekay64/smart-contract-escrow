@@ -12,7 +12,7 @@ export default function App() {
     <WalletProvider>
       <div className="app">
         <header className="topbar">
-          <div className="brand">smart-contract-payments</div>
+          <div className="brand">stellar-payment-gateway-sdk-main</div>
           <nav>
             <NavLink to="/" end>
               Send

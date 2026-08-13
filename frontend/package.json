@@ -1,5 +1,5 @@
 {
-  "name": "smart-contract-payments-frontend",
+  "name": "stellar-payment-gateway-sdk-main-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",

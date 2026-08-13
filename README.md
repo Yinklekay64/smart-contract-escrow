@@ -1,4 +1,4 @@
-# smart-contract-payments
+# stellar-payment-gateway-sdk-main
 
 A decentralized Web3 payment system that lets users send and receive payments
 on-chain — in native ETH or whitelisted ERC-20 stablecoins — with support for
