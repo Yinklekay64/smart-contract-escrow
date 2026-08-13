@@ -1,4 +1,5 @@
 import {
+  Asset,
   BASE_FEE,
   Networks,
   Operation,
@@ -23,6 +24,12 @@ export const i128 = (value) => nativeToScVal(String(value), { type: "i128" });
 export const u64 = (value) => nativeToScVal(String(value), { type: "u64" });
 export const bool = (value) => nativeToScVal(Boolean(value), { type: "bool" });
 export const optAddr = (value) => (value ? addr(value) : xdr.ScVal.scvVoid());
+
+// The native XLM Stellar Asset Contract (SAC) address is derived from the
+// network id, so it differs per network. `Asset.native().contractId(...)`
+// computes the deterministic id for the given passphrase.
+export const nativeXlmTokenId = (networkPassphrase) =>
+  Asset.native().contractId(networkPassphrase);
 
 // ---- Read (simulate a view/read call, no signing) ---------------------------
 

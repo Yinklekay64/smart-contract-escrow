@@ -177,17 +177,20 @@ Roles are only tested as generated Ed25519 accounts.
 
 ## Small features
 
-### ESC-30 · Native XLM deposits
+### ESC-30 · Native XLM deposits ✅
 
 - **Type:** feature
 - **Complexity:** High
+- **Status:** done — the escrow is token-agnostic and works with the native XLM
+  SAC out of the box; tests cover native deposit → confirm/refund and the
+  frontend offers a "Use native XLM" quick-select.
 
 **Acceptance criteria**
 
-- [ ] Support funding an escrow with native XLM in addition to SAC tokens.
-- [ ] Track the native balance safely across deposit/release/refund.
-- [ ] Tests cover native deposit, release, and refund paths.
-- [ ] Update the roadmap (`v0.4`) and docs.
+- [x] Support funding an escrow with native XLM in addition to SAC tokens.
+- [x] Track the native balance safely across deposit/release/refund.
+- [x] Tests cover native deposit, release, and refund paths.
+- [x] Update the roadmap (`v0.4`) and docs.
 
 ### ESC-31 · Token allow-list on the factory
 

@@ -30,7 +30,9 @@ The escrow holds real value, so the primary threats are:
 - **Token risk** — the escrow holds whatever SAC token it is configured with.
   A malicious or non-standard token could misbehave (e.g. clawback). The
   contract does not whitelist tokens; integrators should only create escrows
-  with trusted assets.
+  with trusted assets. Native XLM is supported through the native asset SAC;
+  when the escrow holds XLM, its balance is tracked by the native SAC's own
+  contract storage rather than a classic account balance.
 
 ## Design invariants
 
@@ -47,8 +49,6 @@ The escrow holds real value, so the primary threats are:
 
 ## Known limitations
 
-- **Native XLM deposits are not yet supported** — deposits use SAC tokens
-  (e.g. USDC). Native asset support is planned (see the roadmap).
 - **Single asset per escrow** — multi-asset escrows are a roadmap item.
 - **No token whitelist** — the factory trusts the token address passed by the
   buyer.

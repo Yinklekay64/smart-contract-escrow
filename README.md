@@ -32,7 +32,8 @@ self-custodied by the contract, not by any trusted operator.
   optional `arbiter`) and a strict state machine.
 - **`EscrowFactory`** — deploys and indexes many concurrent `Escrow` instances
   from one address (factory pattern).
-- **Assets** — deposits use any Stellar Asset Contract (SAC) token, e.g. USDC.
+- **Assets** — deposits use any Stellar Asset Contract (SAC) token (e.g. USDC)
+  or native XLM via the native asset SAC.
 - **Events** — every state transition emits a typed contract event.
 
 ```
@@ -105,10 +106,13 @@ stellar contract invoke \
   --buyer <BUYER> \
   --seller <SELLER> \
   --arbiter <ARBITER> \
-  --token <USDC_CONTRACT_ID> \
+  --token <TOKEN_CONTRACT_ID> \
   --amount 10000000 \
   --timeout 604800
 ```
+
+`<TOKEN_CONTRACT_ID>` is any SAC token (e.g. USDC) or the native XLM SAC:
+`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` (testnet).
 
 The returned id indexes the deployed escrow; retrieve its address with
 `get_escrow(id)`, then interact directly:

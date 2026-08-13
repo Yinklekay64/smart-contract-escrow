@@ -1,12 +1,20 @@
 #![cfg(test)]
 
+extern crate alloc;
+
 use super::Escrow;
 use super::EscrowClient;
 use crate::errors::EscrowError;
 use crate::state::State;
+use alloc::rc::Rc;
 use soroban_sdk::testutils::{Address as _, Deployer as _, Ledger};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
-use soroban_sdk::{Address, Env};
+use soroban_sdk::xdr::{
+    AccountEntry, AccountEntryExt, AccountId, Asset, ContractId, Hash, LedgerEntry,
+    LedgerEntryData, LedgerEntryExt, LedgerKey, LedgerKeyAccount, Limits, PublicKey, ScAddress,
+    SequenceNumber, Thresholds, Uint256, VecM, WriteXdr,
+};
+use soroban_sdk::{Address, Bytes, Env, TryFromVal};
 
 const AMOUNT: i128 = 1_000;
 const TIMEOUT: u64 = 3_600;
@@ -65,6 +73,58 @@ fn setup() -> Fixture {
         token,
         escrow_id,
     }
+}
+
+/// The native XLM Stellar Asset Contract (SAC) address. Deploying the SAC for
+/// the native asset registers its built-in code and returns the deterministic,
+/// network-wide address.
+fn native_sac(env: &Env) -> Address {
+    let bytes = Asset::Native.to_xdr(Limits::none()).unwrap();
+    env.deployer()
+        .with_stellar_asset(Bytes::from_slice(env, &bytes))
+        .deploy()
+}
+
+/// Generate a real Ed25519 account address (G...). `Address::generate` always
+/// produces contract addresses (C...), which cannot hold a native XLM balance,
+/// so we reuse its 32 bytes as a key and wrap them as an account.
+fn generate_account(env: &Env) -> Address {
+    let contract = Address::generate(env);
+    let key = match ScAddress::from(&contract) {
+        ScAddress::Contract(ContractId(Hash(key))) => key,
+        _ => panic!("expected a contract address"),
+    };
+    Address::try_from_val(
+        env,
+        &ScAddress::Account(AccountId(PublicKey::PublicKeyTypeEd25519(Uint256(key)))),
+    )
+    .unwrap()
+}
+
+/// Create an account ledger entry with a native XLM `balance`, so the native
+/// SAC reports the account as funded.
+fn fund_native(env: &Env, address: &Address, amount: i64) {
+    let account_id: AccountId = address.try_into().unwrap();
+    let key = Rc::new(LedgerKey::Account(LedgerKeyAccount {
+        account_id: account_id.clone(),
+    }));
+    let entry = Rc::new(LedgerEntry {
+        data: LedgerEntryData::Account(AccountEntry {
+            account_id,
+            balance: amount,
+            flags: 0,
+            home_domain: Default::default(),
+            inflation_dest: None,
+            num_sub_entries: 0,
+            seq_num: SequenceNumber(0),
+            thresholds: Thresholds([1; 4]),
+            signers: VecM::default(),
+            ext: AccountEntryExt::V0,
+        }),
+        last_modified_ledger_seq: 0,
+        ext: LedgerEntryExt::V0,
+    });
+    env.host().add_ledger_entry(&key, &entry, None).unwrap();
 }
 
 #[test]
@@ -398,6 +458,81 @@ fn constructor_rejects_zero_timeout() {
         Escrow,
         (buyer, seller, None::<Address>, token, AMOUNT, 0u64),
     );
+}
+
+#[test]
+fn native_xlm_deposit_lifecycle() {
+    let env = Env::default();
+    let buyer = generate_account(&env);
+    let seller = generate_account(&env);
+    let arbiter = generate_account(&env);
+
+    let native = native_sac(&env);
+    let native_token = TokenClient::new(&env, &native);
+
+    fund_native(&env, &buyer, AMOUNT as i64);
+    fund_native(&env, &seller, 0);
+
+    let escrow_id = env.register(
+        Escrow,
+        (
+            buyer.clone(),
+            seller.clone(),
+            Some(arbiter.clone()),
+            native.clone(),
+            AMOUNT,
+            TIMEOUT,
+        ),
+    );
+    let c = EscrowClient::new(&env, &escrow_id);
+
+    assert_eq!(native_token.balance(&buyer), AMOUNT);
+
+    env.mock_all_auths();
+    c.deposit();
+    assert_eq!(c.state(), State::AwaitingDelivery);
+    assert_eq!(native_token.balance(&escrow_id), AMOUNT);
+    assert_eq!(native_token.balance(&buyer), 0);
+
+    c.mark_delivered();
+    c.confirm();
+    assert_eq!(c.state(), State::Complete);
+    assert_eq!(native_token.balance(&seller), AMOUNT);
+    assert_eq!(native_token.balance(&escrow_id), 0);
+}
+
+#[test]
+fn native_xlm_refund_returns_funds() {
+    let env = Env::default();
+    let buyer = generate_account(&env);
+    let seller = generate_account(&env);
+
+    let native = native_sac(&env);
+    let native_token = TokenClient::new(&env, &native);
+
+    fund_native(&env, &buyer, AMOUNT as i64);
+    fund_native(&env, &seller, 0);
+
+    let escrow_id = env.register(
+        Escrow,
+        (
+            buyer.clone(),
+            seller.clone(),
+            None::<Address>,
+            native.clone(),
+            AMOUNT,
+            TIMEOUT,
+        ),
+    );
+    let c = EscrowClient::new(&env, &escrow_id);
+
+    env.mock_all_auths();
+    c.deposit();
+    c.refund();
+
+    assert_eq!(c.state(), State::Refunded);
+    assert_eq!(native_token.balance(&buyer), AMOUNT);
+    assert_eq!(native_token.balance(&escrow_id), 0);
 }
 
 // A tiny guard against an unused-error-code regression: keep the mapping in

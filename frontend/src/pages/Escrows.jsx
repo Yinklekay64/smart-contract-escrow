@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "../context/WalletContext.jsx";
-import { addr, bool, i128, invoke, optAddr, read, u64 } from "../lib/sdk.js";
+import {
+  addr,
+  bool,
+  i128,
+  invoke,
+  nativeXlmTokenId,
+  optAddr,
+  read,
+  u64,
+} from "../lib/sdk.js";
 import { formatAmount, shortAddress } from "../lib/format.js";
 
 const FACTORY_ID = import.meta.env.VITE_FACTORY_CONTRACT_ID || "";
@@ -199,6 +208,13 @@ export default function Escrows() {
                 <div className="field">
                   <label>Token contract id (USDC/SAC)</label>
                   <input value={form.token} onChange={(e) => setForm({ ...form, token: e.target.value })} required />
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setForm({ ...form, token: nativeXlmTokenId(networkPassphrase) })}
+                  >
+                    Use native XLM
+                  </button>
                 </div>
                 <div className="field">
                   <label>Amount (raw units)</label>

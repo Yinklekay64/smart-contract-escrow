@@ -23,7 +23,7 @@
 
 ## v0.4 — Multi-asset & native support
 
-- [ ] Native XLM deposits in addition to SAC tokens
+- [x] Native XLM deposits in addition to SAC tokens
 - [ ] Multi-asset escrows (basket of assets per deal)
 - [x] Storage TTL extension on state-changing calls
 

@@ -97,6 +97,12 @@ Each `Escrow` stores its configuration and mutable state in instance storage:
 The `EscrowFactory` stores the uploaded `Escrow` Wasm hash, an escrow counter,
 and a `Map<u32, Address>` id → address index.
 
+The `token` is any Stellar Asset Contract (SAC) address — USDC, a wrapped asset,
+or the native XLM SAC (`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
+on testnet). The escrow is token-agnostic: when it holds native XLM, the
+balance is tracked by the native SAC's own contract storage rather than a
+classic account balance, so deposit/release/refund behave identically.
+
 ## Events
 
 Every transition emits a typed `#[contractevent]`:
