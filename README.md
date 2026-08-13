@@ -117,6 +117,12 @@ double confirmation/deposit, zero-value and expired-timeout inputs.
 on-chain during its own constructor, so no separate escrow deployment is
 required.
 
+Current testnet deployment:
+
+- **EscrowFactory** `CBBYYEJZCYJ5G2466GYULE6IMGKXPQNE7NMYXEN7HXC2LXTVBLYMTMI7`
+  ([explorer](https://lab.stellar.org/r/testnet/contract/CBBYYEJZCYJ5G2466GYULE6IMGKXPQNE7NMYXEN7HXC2LXTVBLYMTMI7))
+- **Owner** `GBASDPFG672PTPYIKXSNVWL57P4IOAG4TMHBMECKHEIGM6L3TUZJOZIX` (identity `escrow-dev`)
+
 ## Usage
 
 Create an escrow through the factory:
