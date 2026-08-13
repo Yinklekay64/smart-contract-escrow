@@ -35,12 +35,12 @@ pub struct Released {
     pub amount: i128,
 }
 
-/// Emitted when the buyer raises a dispute.
+/// Emitted when either party raises a dispute.
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Disputed {
     #[topic]
-    pub buyer: Address,
+    pub disputer: Address,
 }
 
 /// Emitted when the arbiter settles a dispute.
@@ -88,9 +88,9 @@ pub fn released(env: &Env, seller: &Address, amount: i128) {
     });
 }
 
-pub fn disputed(env: &Env, buyer: &Address) {
+pub fn disputed(env: &Env, disputer: &Address) {
     env.events().publish_event(&Disputed {
-        buyer: buyer.clone(),
+        disputer: disputer.clone(),
     });
 }
 

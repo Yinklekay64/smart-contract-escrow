@@ -27,13 +27,16 @@ stellar contract build --manifest-path contracts/escrow/Cargo.toml
 stellar contract build --manifest-path contracts/factory/Cargo.toml
 
 echo "==> Deploying EscrowFactory to $NETWORK (identity: $IDENTITY)"
+OWNER_ADDRESS="$(stellar keys public-key "$IDENTITY")"
 FACTORY_ID="$(
   stellar contract deploy \
     --wasm target/wasm32v1-none/release/escrow_factory.wasm \
     --network "$NETWORK" \
     --source-account "$IDENTITY" \
-    --alias escrow-factory
+    --alias escrow-factory \
+    -- --owner "$OWNER_ADDRESS"
 )"
+echo "Factory owner (may pause new escrows): $OWNER_ADDRESS"
 
 echo
 echo "EscrowFactory deployed: $FACTORY_ID"

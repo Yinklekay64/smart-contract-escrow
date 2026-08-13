@@ -18,9 +18,10 @@ const TTL_EXTEND_TO: u32 = 2_592_000;
 ///
 /// Three roles — `buyer`, `seller`, and an optional `arbiter` — interact over
 /// a locked amount of a Stellar asset (`token`). The buyer funds the escrow,
-/// the seller marks delivery, and the buyer confirms receipt or disputes it
-/// within a timeout window. If the buyer does nothing after delivery, the
-/// escrow auto-releases to the seller. Disputes are settled by the arbiter.
+/// the seller marks delivery, and the buyer confirms receipt or either party
+/// disputes it within a timeout window. If the buyer does nothing after
+/// delivery, the escrow auto-releases to the seller. Disputes are settled by
+/// the arbiter.
 ///
 /// Instances are deployed by the `EscrowFactory` contract, but any caller may
 /// interact with an instance directly once it knows its address.
@@ -194,12 +195,18 @@ impl Escrow {
         Ok(())
     }
 
-    /// The buyer raises a dispute, pausing the escrow for the arbiter.
-    pub fn dispute(env: Env) -> Result<(), EscrowError> {
+    /// Either the buyer or the seller raises a dispute, pausing the escrow for
+    /// the arbiter. The caller identifies itself via `disputer` and must prove
+    /// it is one of the two parties.
+    pub fn dispute(env: Env, disputer: Address) -> Result<(), EscrowError> {
         Self::bump_instance_ttl(&env);
 
         let buyer: Address = env.storage().instance().get(&StorageKey::Buyer).unwrap();
-        buyer.require_auth();
+        let seller: Address = env.storage().instance().get(&StorageKey::Seller).unwrap();
+        if disputer != buyer && disputer != seller {
+            return Err(EscrowError::Unauthorized);
+        }
+        disputer.require_auth();
 
         Self::expect_state(&env, State::AwaitingDelivery)?;
 
@@ -214,7 +221,7 @@ impl Escrow {
         }
 
         Self::set_state(&env, State::Disputed);
-        events::disputed(&env, &buyer);
+        events::disputed(&env, &disputer);
         Ok(())
     }
 

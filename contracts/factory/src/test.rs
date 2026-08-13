@@ -21,7 +21,8 @@ impl Fixture {
 
 fn setup() -> Fixture {
     let env = Env::default();
-    let factory_id = env.register(EscrowFactory, ());
+    let owner = Address::generate(&env);
+    let factory_id = env.register(EscrowFactory, (owner.clone(),));
 
     let buyer = Address::generate(&env);
     let seller = Address::generate(&env);
@@ -112,6 +113,55 @@ fn list_escrows_by_user_indexes_participants() {
     // A stranger is in no escrows.
     let stranger = Address::generate(&f.env);
     assert_eq!(factory.list_escrows_by_user(&stranger).len(), 0);
+}
+
+#[test]
+fn pause_blocks_new_escrows_and_unpause_resumes() {
+    let f = setup();
+    let factory = f.factory();
+    let amount = 100i128;
+    let timeout = 3600u64;
+    let arbiter_opt = Some(f.arbiter.clone());
+
+    f.env.mock_all_auths();
+    factory.pause();
+
+    // Creation is rejected while paused.
+    assert!(factory
+        .try_create_escrow(
+            &f.buyer,
+            &f.seller,
+            &arbiter_opt,
+            &f.token,
+            &amount,
+            &timeout
+        )
+        .is_err());
+    assert_eq!(factory.escrow_count(), 0);
+
+    // Unpause and creation works again.
+    factory.unpause();
+    let id = factory.create_escrow(
+        &f.buyer,
+        &f.seller,
+        &arbiter_opt,
+        &f.token,
+        &amount,
+        &timeout,
+    );
+    assert_eq!(id, 0);
+    assert_eq!(factory.escrow_count(), 1);
+}
+
+#[test]
+fn non_owner_cannot_pause() {
+    // No mocked auths: the owner's `require_auth` must fail for any caller.
+    let env = Env::default();
+    let owner = Address::generate(&env);
+    let factory_id = env.register(EscrowFactory, (owner,));
+    let factory = EscrowFactoryClient::new(&env, &factory_id);
+
+    assert!(factory.try_pause().is_err());
 }
 
 #[test]

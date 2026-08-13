@@ -9,6 +9,8 @@
    arbiter.
 2. **`EscrowFactory`** — deploys `Escrow` instances on demand and keeps an
    id → address index, so one factory address manages many concurrent escrows.
+   The factory records an `owner` who can `pause`/`unpause` the deployment of
+   new escrows (emergency stop); existing escrows and their funds are untouched.
 
 The factory embeds the compiled `Escrow` Wasm (`contractimport!`) and uploads it
 on-chain once during its own constructor, storing the Wasm hash. Each
@@ -51,7 +53,7 @@ derived from the factory address and an id-based salt.
 | Role     | Capabilities                                                    |
 | -------- | --------------------------------------------------------------- |
 | `buyer`  | `deposit`, `confirm`, `dispute`                                 |
-| `seller` | `mark_delivered`, `refund` (before delivery)                    |
+| `seller` | `mark_delivered`, `refund` (before delivery), `dispute`         |
 | `arbiter`| `resolve` (dispute settlement), optional                        |
 | anyone   | `release` (only valid after the response window expires)        |
 
@@ -74,7 +76,7 @@ Buyer ──confirm──▶ Escrow (Complete) ──transfer──▶ SAC (escr
 ### Dispute path
 
 ```
-Buyer ──dispute──▶ Escrow (Disputed)
+Buyer/Seller ──dispute──▶ Escrow (Disputed)
 Arbiter ──resolve(release_to_seller)──▶ Escrow (Resolved/Refunded)
                                    └─transfer─▶ SAC (escrow → seller | buyer)
 ```

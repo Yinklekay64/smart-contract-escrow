@@ -13,7 +13,7 @@ mod factory_contract {
 
 use soroban_sdk::testutils::{Address as _, Ledger};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
-use soroban_sdk::{Address, BytesN, Env, Val, Vec};
+use soroban_sdk::{Address, BytesN, Env, IntoVal, Val, Vec};
 
 const AMOUNT: i128 = 1_000;
 const TIMEOUT: u64 = 3_600;
@@ -63,6 +63,7 @@ fn setup() -> Fixture {
     let seller = Address::generate(&env);
     let arbiter = Address::generate(&env);
     let admin = Address::generate(&env);
+    let owner = Address::generate(&env);
 
     let sac = env.register_stellar_asset_contract_v2(admin.clone());
     let token = sac.address();
@@ -75,7 +76,7 @@ fn setup() -> Fixture {
     let deployer = Address::generate(&env);
     let factory_wasm_hash = env.deployer().upload_contract_wasm(factory_contract::WASM);
     let salt = BytesN::from_array(&env, &[0u8; 32]);
-    let args = Vec::<Val>::new(&env);
+    let args: Vec<Val> = (owner.clone(),).into_val(&env);
     let factory_id = env
         .deployer()
         .with_address(deployer, salt)
@@ -115,7 +116,7 @@ fn full_lifecycle_dispute_resolve_refunds_buyer() {
     f.env.mock_all_auths();
     escrow.deposit();
     escrow.mark_delivered();
-    escrow.dispute();
+    escrow.dispute(&f.buyer);
     escrow.resolve(&false);
 
     assert_eq!(f.token_client().balance(&f.buyer), AMOUNT);

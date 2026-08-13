@@ -20,6 +20,7 @@ pub enum FactoryError {
     ZeroTimeout = 2,
     SameParties = 3,
     InvalidArbiter = 4,
+    Paused = 5,
 }
 
 #[contracttype]
@@ -29,6 +30,8 @@ pub enum FactoryKey {
     Count,
     Escrows,
     UserEscrows,
+    Owner,
+    Paused,
 }
 
 /// Instance/code TTL policy for the long-lived factory index. Ledgers are ~5s
@@ -69,8 +72,9 @@ fn push_to_user_index(env: &Env, user: &Address, id: u32) {
 
 #[contractimpl]
 impl EscrowFactory {
-    /// Upload the embedded Escrow Wasm once and initialize the index.
-    pub fn __constructor(env: Env) {
+    /// Upload the embedded Escrow Wasm once, record the `owner` (who may pause
+    /// new deployments), and initialize the indexes.
+    pub fn __constructor(env: Env, owner: Address) {
         let wasm_hash = env.deployer().upload_contract_wasm(escrow_contract::WASM);
         env.storage()
             .instance()
@@ -83,6 +87,8 @@ impl EscrowFactory {
             &FactoryKey::UserEscrows,
             &Map::<Address, Vec<u32>>::new(&env),
         );
+        env.storage().instance().set(&FactoryKey::Owner, &owner);
+        env.storage().instance().set(&FactoryKey::Paused, &false);
     }
 
     /// Deploy a new escrow and return its id.
@@ -103,6 +109,11 @@ impl EscrowFactory {
         env.storage()
             .instance()
             .extend_ttl(TTL_THRESHOLD.min(max), TTL_EXTEND_TO.min(max));
+
+        // Fail fast while paused, before requiring buyer authorization.
+        if env.storage().instance().get(&FactoryKey::Paused).unwrap() {
+            return Err(FactoryError::Paused);
+        }
 
         buyer.require_auth();
 
@@ -164,6 +175,21 @@ impl EscrowFactory {
         });
 
         Ok(id)
+    }
+
+    /// Pause the deployment of new escrows. Owner only. Existing escrows and
+    /// their funds are unaffected.
+    pub fn pause(env: Env) {
+        let owner: Address = env.storage().instance().get(&FactoryKey::Owner).unwrap();
+        owner.require_auth();
+        env.storage().instance().set(&FactoryKey::Paused, &true);
+    }
+
+    /// Resume the deployment of new escrows. Owner only.
+    pub fn unpause(env: Env) {
+        let owner: Address = env.storage().instance().get(&FactoryKey::Owner).unwrap();
+        owner.require_auth();
+        env.storage().instance().set(&FactoryKey::Paused, &false);
     }
 
     /// Total number of escrows created by this factory.

@@ -287,8 +287,11 @@ export default function Escrows() {
                 <button onClick={() => act("confirm")} disabled={detail.state !== "AwaitingDelivery"}>
                   Confirm (buyer)
                 </button>
-                <button onClick={() => act("dispute")} disabled={detail.state !== "AwaitingDelivery"}>
-                  Dispute (buyer)
+                <button
+                  onClick={() => act("dispute", [addr(publicKey)])}
+                  disabled={detail.state !== "AwaitingDelivery"}
+                >
+                  Dispute (buyer/seller)
                 </button>
                 <button onClick={() => act("refund")} disabled={detail.state !== "AwaitingDelivery" || detail.delivered}>
                   Refund (seller)

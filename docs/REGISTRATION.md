@@ -9,8 +9,8 @@ that only the repo owner can submit.
 
 **smart-contract-escrow** is a decentralized, Stellar-native escrow platform
 built with Soroban. A buyer locks funds in a smart contract; the seller
-delivers; the buyer confirms, disputes, or the funds auto-release after a
-timeout. An optional arbiter settles disputes. Funds are self-custodied by the
+delivers; the buyer confirms, either party disputes, or the funds auto-release
+after a timeout. An optional arbiter settles disputes. Funds are self-custodied by the
 contract — no trusted middleman. It supports any Stellar Asset Contract token
 (e.g. USDC) and native XLM, with many concurrent escrows managed by a factory.
 
