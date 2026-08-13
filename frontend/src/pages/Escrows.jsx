@@ -153,10 +153,41 @@ export default function Escrows() {
           This app uses the Freighter browser extension to interact with Soroban
           contracts on Stellar.
         </p>
+        <ol className="muted" style={{ paddingLeft: 18, margin: "12px 0" }}>
+          <li>
+            Install{" "}
+            <a href="https://freighter.app" target="_blank" rel="noreferrer">
+              Freighter
+            </a>{" "}
+            (Chrome, Brave, or Firefox).
+          </li>
+          <li>
+            Unlock it and switch the network to <strong>Testnet</strong>.
+          </li>
+          <li>Return here and click “Connect Freighter”.</li>
+        </ol>
         {error && <p className="error">{error}</p>}
-        <button onClick={connect} disabled={busy}>
-          {busy ? "Connecting…" : "Connect Freighter"}
-        </button>
+        <div className="actions">
+          <a
+            href="https://freighter.app"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "inline-block",
+              padding: "9px 14px",
+              borderRadius: 8,
+              background: "var(--teal)",
+              color: "#04302a",
+              fontSize: 14,
+              textDecoration: "none",
+            }}
+          >
+            Install Freighter
+          </a>
+          <button onClick={connect} disabled={busy}>
+            {busy ? "Connecting…" : "Connect Freighter"}
+          </button>
+        </div>
       </div>
     );
   }
