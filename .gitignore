@@ -29,6 +29,7 @@ deployments/
 # Soroban / stellar CLI local state
 .stellar/
 .soroban/
+test_snapshots/
 
 # Coverage
 *.lcov
